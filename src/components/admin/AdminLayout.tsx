@@ -65,6 +65,16 @@ const AdminLayout = () => {
       icon: <Wallet className="mr-2 h-4 w-4" />,
     },
     {
+      title: "Reports",
+      href: "/admin/reports",
+      icon: <FileText className="mr-2 h-4 w-4" />,
+    },
+    {
+      title: "Contact Sellers",
+      href: "/admin/contactSellers",
+      icon: <FileText className="mr-2 h-4 w-4" />,
+    },
+    {
       title: "Settings",
       href: "/admin/settings",
       icon: <Settings className="mr-2 h-4 w-4" />,

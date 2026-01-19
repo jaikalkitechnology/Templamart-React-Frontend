@@ -1,9 +1,9 @@
-// seller/upload-template.tsx
-import { useState } from "react";
+// seller/edit-template.tsx
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import axios from "axios";
 import { BASE_URL } from "@/config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -30,9 +30,15 @@ import {
   AlertCircle,
   CheckCircle,
   Package,
+  Loader2,
+  Edit3,
+  Save,
+  Eye,
+  Download,
+  RefreshCw,
+  Shield,
   Sparkles,
   Zap,
-  Shield,
   Globe,
   DollarSign,
   Tag,
@@ -42,17 +48,19 @@ import {
   Palette,
   Clock,
   Rocket,
-  Eye,
-  Download,
   Info,
-  Check,
-  Cloud,
-  Layers,
-  Code,
-  Cpu,
   FileText,
   Key,
-  Box
+  Box,
+  Layers,
+  Cpu,
+  Cloud,
+  History,
+  ArrowLeft,
+  Settings,
+  Image as ImageIcon,
+  Link,
+  Code
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -61,15 +69,19 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-const UploadTemplate = () => {
+const EditTemplate = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { product_token } = useParams<{ product_token: string }>();
+  
   const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [activeStep, setActiveStep] = useState(1);
+  const [activeTab, setActiveTab] = useState("basic");
 
   // Form state
   const [productData, setProductData] = useState({
@@ -93,6 +105,22 @@ const UploadTemplate = () => {
   // File state
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
+  
+  // Existing file info
+  const [existingFiles, setExistingFiles] = useState({
+    template_url: "",
+    preview_url: "",
+    product_image: "",
+    product_name: "",
+    created_at: "",
+  });
+
+  const [fileStats, setFileStats] = useState({
+    template_size: "0 MB",
+    preview_size: "0 MB",
+    downloads: 0,
+    views: 0,
+  });
 
   const categories = [
     { value: "Website Templates", icon: <Globe className="h-4 w-4" /> },
@@ -124,6 +152,72 @@ const UploadTemplate = () => {
     { value: "Figma", icon: <PenTool className="h-4 w-4" /> },
   ];
 
+  // Fetch existing product data
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const res = await axios.get(
+          `${BASE_URL}/dash/seller/products/${product_token}/edit`,
+          {
+            headers: {
+              Authorization: `Bearer ${user?.token}`,
+            },
+          }
+        );
+
+        const product = res.data;
+        
+        setProductData({
+          product_name: product.product_name || "",
+          title: product.title || "",
+          description: product.description || "",
+          category_name: product.category_name || "",
+          product_price: product.product_price?.toString() || "",
+          author: product.author || "",
+          tags: product.tags || "",
+          licenseType: product.licenseType || "standard",
+          technology: product.technology || "HTML",
+          file_size: product.file_size || "NA",
+          featured: product.featured || false,
+          responsive: product.responsive || true,
+          documentation: product.documentation || true,
+          support: product.support || true,
+          updates: product.updates || false,
+        });
+
+        setExistingFiles({
+          template_url: product.template_url || "",
+          preview_url: product.preview_url || "",
+          product_image: product.product_image || "",
+          product_name: product.product_name || "",
+          created_at: product.created_at || "",
+        });
+
+        // Simulate file stats (would come from API)
+        setFileStats({
+          template_size: product.file_size || "0 MB",
+          preview_size: "5.2 MB",
+          downloads: product.downloads || 0,
+          views: product.views || 0,
+        });
+
+        toast.success("Template loaded successfully!");
+
+      } catch (error: any) {
+        console.error("Fetch error:", error);
+        const errorMsg = error.response?.data?.detail || "Failed to load template";
+        setUploadError(errorMsg);
+        toast.error(errorMsg);
+      } finally {
+        setFetchLoading(false);
+      }
+    };
+
+    if (product_token && user?.token) {
+      fetchProduct();
+    }
+  }, [product_token, user?.token]);
+
   const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -143,7 +237,7 @@ const UploadTemplate = () => {
         file_size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
       }));
       setUploadError(null);
-      toast.success("Template file added successfully!");
+      toast.success("New template file selected!");
     }
   };
 
@@ -162,7 +256,7 @@ const UploadTemplate = () => {
       }
       setPreviewFile(file);
       setUploadError(null);
-      toast.success("Preview file added successfully!");
+      toast.success("New preview file selected!");
     }
   };
 
@@ -172,52 +266,49 @@ const UploadTemplate = () => {
     setUploadError(null);
     setUploadSuccess(false);
 
-    if (!templateFile) {
-      setUploadError("Please upload the template file (full React project ZIP)");
-      toast.error("Template file is required");
-      setLoading(false);
-      return;
-    }
-
-    if (!previewFile) {
-      setUploadError("Please upload the preview file (dist + preview-meta.json ZIP)");
-      toast.error("Preview file is required");
-      setLoading(false);
-      return;
-    }
-
     try {
       const formData = new FormData();
       
+      // Append product data as JSON
       formData.append("product_data", JSON.stringify(productData));
-      formData.append("template_file", templateFile);
-      formData.append("preview_file", previewFile);
+      
+      // Append files only if they're being replaced
+      if (templateFile) {
+        formData.append("template_file", templateFile);
+      }
+      if (previewFile) {
+        formData.append("preview_file", previewFile);
+      }
 
-      const res = await axios.post(`${BASE_URL}/dash/seller/products`, formData, {
-        headers: {
-          Authorization: `Bearer ${user?.token}`,
-          "Content-Type": "multipart/form-data",
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / (progressEvent.total || 1)
-          );
-          setUploadProgress(percentCompleted);
-        },
-      });
+      const res = await axios.put(
+        `${BASE_URL}/dash/seller/products/${product_token}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${user?.token}`,
+            "Content-Type": "multipart/form-data",
+          },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / (progressEvent.total || 1)
+            );
+            setUploadProgress(percentCompleted);
+          },
+        }
+      );
 
       setUploadSuccess(true);
-      toast.success("Template uploaded successfully! Redirecting...");
+      toast.success("Template updated successfully! Redirecting...");
       
       setTimeout(() => {
         navigate("/seller/templates");
       }, 2000);
 
     } catch (error: any) {
-      console.error("Upload error:", error);
+      console.error("Update error:", error);
       const errorMsg = error.response?.data?.detail || 
         error.response?.data?.message || 
-        "Failed to upload template. Please try again.";
+        "Failed to update template. Please try again.";
       setUploadError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -240,86 +331,109 @@ const UploadTemplate = () => {
     setProductData(prev => ({ ...prev, [name]: checked }));
   };
 
-  const steps = [
-    { number: 1, title: "Basic Info", icon: <Info className="h-4 w-4" /> },
-    { number: 2, title: "Upload Files", icon: <Upload className="h-4 w-4" /> },
-    { number: 3, title: "Review", icon: <Eye className="h-4 w-4" /> },
-  ];
+  if (fetchLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
+            <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-gray-600 font-medium">Loading template details...</p>
+          <p className="text-sm text-gray-400">Please wait a moment</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Header */}
-      
-      <div className="border-b bg-white shadow-sm">
+      <div className="border-b bg-white">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                Upload New Template
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Share your amazing template with thousands of developers
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/seller/templates")}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <Separator orientation="vertical" className="h-6" />
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                  Edit Template
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  Update and improve your template details
+                </p>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => navigate("/seller/templates")}
-              className="gap-2"
-            >
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
+            <Badge variant="outline" className="gap-2 px-3 py-1">
+              <Edit3 className="h-3 w-3" />
+              Editing Mode
+            </Badge>
           </div>
         </div>
       </div>
 
-      {/* Progress Steps */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative mb-8">
-            <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-gray-200 -translate-y-1/2"></div>
-            <div className="relative flex justify-between">
-              {steps.map((step) => (
-                <div key={step.number} className="relative z-10">
-                  <div className={`flex flex-col items-center ${activeStep >= step.number ? 'text-purple-600' : 'text-gray-400'}`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${activeStep >= step.number ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-gray-300'}`}>
-                      {activeStep > step.number ? (
-                        <Check className="h-5 w-5" />
-                      ) : (
-                        step.icon
-                      )}
-                    </div>
-                    <span className="mt-2 text-sm font-medium">{step.title}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 pb-12">
+      <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Template Info Card */}
+            {/* Template Status Card */}
+            <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={existingFiles.product_image} />
+                      <AvatarFallback className="bg-gradient-to-r from-blue-500 to-cyan-500">
+                        <ImageIcon className="h-6 w-6 text-white" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <CardTitle>{existingFiles.product_name}</CardTitle>
+                      <CardDescription>
+                        Created on {new Date(existingFiles.created_at).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="gap-1">
+                      <Eye className="h-3 w-3" />
+                      {fileStats.views} views
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1">
+                      <Download className="h-3 w-3" />
+                      {fileStats.downloads} downloads
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Edit Form */}
             <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 border-b">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg">
-                    <Sparkles className="h-6 w-6 text-white" />
+                    <Settings className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-2xl">Template Information</CardTitle>
+                    <CardTitle className="text-2xl">Edit Template</CardTitle>
                     <CardDescription>
-                      Fill in the details about your template
+                      Update your template information and files
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
-                <Tabs defaultValue="basic" className="space-y-6">
-                  <TabsList className="grid grid-cols-3 w-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                  <TabsList className="grid grid-cols-4 w-full">
                     <TabsTrigger value="basic" className="gap-2">
                       <Info className="h-4 w-4" />
                       Basic Info
@@ -327,6 +441,10 @@ const UploadTemplate = () => {
                     <TabsTrigger value="technical" className="gap-2">
                       <Code className="h-4 w-4" />
                       Technical
+                    </TabsTrigger>
+                    <TabsTrigger value="files" className="gap-2">
+                      <FileArchive className="h-4 w-4" />
+                      Files
                     </TabsTrigger>
                     <TabsTrigger value="features" className="gap-2">
                       <Zap className="h-4 w-4" />
@@ -404,7 +522,7 @@ const UploadTemplate = () => {
                         <Textarea
                           id="description"
                           name="description"
-                          placeholder="Describe your template in detail. Include key features, use cases, and what makes your template unique..."
+                          placeholder="Describe your template in detail..."
                           rows={6}
                           value={productData.description}
                           onChange={handleInputChange}
@@ -534,14 +652,220 @@ const UploadTemplate = () => {
                       <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-white rounded-lg border">
                         <FileArchive className="h-8 w-8 text-blue-500" />
                         <div className="flex-1">
-                          <div className="font-medium">Auto-calculated</div>
+                          <div className="font-medium">Current Size</div>
                           <div className="text-sm text-gray-500">
-                            Will be calculated after file upload
+                            {templateFile ? "New size will be calculated" : "Based on existing file"}
                           </div>
                         </div>
                         <Badge variant="outline" className="text-lg">
                           {productData.file_size}
                         </Badge>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="files" className="space-y-6">
+                    {/* Current Files */}
+                    <div className="space-y-4">
+                      <Label className="flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Current Files
+                      </Label>
+                      
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Template File */}
+                        <Card className="border-2 border-blue-200">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <FileArchive className="h-5 w-5 text-blue-500" />
+                                <CardTitle className="text-sm">Template File</CardTitle>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {fileStats.template_size}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pb-3">
+                            <p className="text-sm text-gray-600 truncate">
+                              {existingFiles.template_url.split('/').pop() || 'template.zip'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 gap-2"
+                                onClick={() => window.open(existingFiles.template_url, '_blank')}
+                              >
+                                <Eye className="h-3 w-3" />
+                                Preview
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 gap-2"
+                                onClick={() => window.open(existingFiles.template_url, '_blank')}
+                              >
+                                <Download className="h-3 w-3" />
+                                Download
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Preview File */}
+                        <Card className="border-2 border-purple-200">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-5 w-5 text-purple-500" />
+                                <CardTitle className="text-sm">Preview File</CardTitle>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {fileStats.preview_size}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pb-3">
+                            <p className="text-sm text-gray-600 truncate">
+                              {existingFiles.preview_url.split('/').pop() || 'preview.zip'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 gap-2"
+                                onClick={() => window.open(existingFiles.preview_url, '_blank')}
+                              >
+                                <Eye className="h-3 w-3" />
+                                Preview
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 gap-2"
+                                onClick={() => window.open(existingFiles.preview_url, '_blank')}
+                              >
+                                <Download className="h-3 w-3" />
+                                Download
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Replace Files */}
+                    <div className="space-y-4">
+                      <Label className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4" />
+                        Replace Files (Optional)
+                      </Label>
+                      
+                      <div className="space-y-4">
+                        {/* Replace Template */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">New Template File</Label>
+                          <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${templateFile ? 'border-green-500 bg-green-50' : 'border-blue-300 bg-blue-50/50'}`}>
+                            <input
+                              id="template-upload"
+                              type="file"
+                              accept=".zip,application/zip"
+                              className="hidden"
+                              onChange={handleTemplateUpload}
+                            />
+                            <label htmlFor="template-upload" className="cursor-pointer">
+                              <div className="space-y-3">
+                                <div className={`p-3 rounded-full w-16 h-16 mx-auto flex items-center justify-center ${templateFile ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                  {templateFile ? <CheckCircle className="h-8 w-8" /> : <FileArchive className="h-8 w-8" />}
+                                </div>
+                                {templateFile ? (
+                                  <>
+                                    <div className="font-medium">{templateFile.name}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {(templateFile.size / (1024 * 1024)).toFixed(2)} MB
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTemplateFile(null);
+                                      }}
+                                      className="mt-2"
+                                    >
+                                      <X className="h-4 w-4 mr-2" />
+                                      Remove
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="font-medium">Click to replace template</div>
+                                    <div className="text-sm text-gray-500">
+                                      Full React project ZIP
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-2">
+                                      Leave empty to keep existing
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Replace Preview */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">New Preview File</Label>
+                          <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${previewFile ? 'border-green-500 bg-green-50' : 'border-purple-300 bg-purple-50/50'}`}>
+                            <input
+                              id="preview-upload"
+                              type="file"
+                              accept=".zip,application/zip"
+                              className="hidden"
+                              onChange={handlePreviewUpload}
+                            />
+                            <label htmlFor="preview-upload" className="cursor-pointer">
+                              <div className="space-y-3">
+                                <div className={`p-3 rounded-full w-16 h-16 mx-auto flex items-center justify-center ${previewFile ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-600'}`}>
+                                  {previewFile ? <CheckCircle className="h-8 w-8" /> : <Package className="h-8 w-8" />}
+                                </div>
+                                {previewFile ? (
+                                  <>
+                                    <div className="font-medium">{previewFile.name}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {(previewFile.size / (1024 * 1024)).toFixed(2)} MB
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewFile(null);
+                                      }}
+                                      className="mt-2"
+                                    >
+                                      <X className="h-4 w-4 mr-2" />
+                                      Remove
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="font-medium">Click to replace preview</div>
+                                    <div className="text-sm text-gray-500">
+                                      Preview package ZIP
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-2">
+                                      Contains dist/ + preview-meta.json
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </TabsContent>
@@ -578,146 +902,25 @@ const UploadTemplate = () => {
             </Card>
           </div>
 
-          {/* Right Column - Upload & Actions */}
+          {/* Right Column - Actions & Info */}
           <div className="space-y-6">
-            {/* Upload Cards */}
+            {/* Update Actions */}
             <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
+              <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50">
                 <CardTitle className="flex items-center gap-2">
-                  <Cloud className="h-5 w-5" />
-                  Upload Files
+                  <Save className="h-5 w-5" />
+                  Update Template
                 </CardTitle>
                 <CardDescription>
-                  Upload your template files
+                  Save your changes
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-6">
-                {/* Template File Upload */}
-                <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
-                    <FileArchive className="h-4 w-4" />
-                    Template File (Full React Project)
-                  </Label>
-                  <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${templateFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50'}`}>
-                    <input
-                      id="template-upload"
-                      type="file"
-                      accept=".zip,application/zip"
-                      className="hidden"
-                      onChange={handleTemplateUpload}
-                    />
-                    <label htmlFor="template-upload" className="cursor-pointer">
-                      <div className="space-y-3">
-                        <div className={`p-3 rounded-full w-16 h-16 mx-auto flex items-center justify-center ${templateFile ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                          {templateFile ? <Check className="h-8 w-8" /> : <FileArchive className="h-8 w-8" />}
-                        </div>
-                        {templateFile ? (
-                          <>
-                            <div className="font-medium">{templateFile.name}</div>
-                            <div className="text-sm text-gray-500">
-                              {(templateFile.size / (1024 * 1024)).toFixed(2)} MB
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTemplateFile(null);
-                              }}
-                              className="mt-2"
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Remove
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-medium">Click to upload</div>
-                            <div className="text-sm text-gray-500">
-                              Full React project ZIP
-                            </div>
-                            <div className="text-xs text-gray-400 mt-2">
-                              Max 100MB
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Preview File Upload */}
-                <div className="space-y-3">
-                  <Label className="flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Preview File (Dist + Meta)
-                  </Label>
-                  <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${previewFile ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-purple-500 hover:bg-purple-50'}`}>
-                    <input
-                      id="preview-upload"
-                      type="file"
-                      accept=".zip,application/zip"
-                      className="hidden"
-                      onChange={handlePreviewUpload}
-                    />
-                    <label htmlFor="preview-upload" className="cursor-pointer">
-                      <div className="space-y-3">
-                        <div className={`p-3 rounded-full w-16 h-16 mx-auto flex items-center justify-center ${previewFile ? 'bg-purple-100 text-purple-600' : 'bg-purple-100 text-purple-600'}`}>
-                          {previewFile ? <Check className="h-8 w-8" /> : <Package className="h-8 w-8" />}
-                        </div>
-                        {previewFile ? (
-                          <>
-                            <div className="font-medium">{previewFile.name}</div>
-                            <div className="text-sm text-gray-500">
-                              {(previewFile.size / (1024 * 1024)).toFixed(2)} MB
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewFile(null);
-                              }}
-                              className="mt-2"
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Remove
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-medium">Click to upload</div>
-                            <div className="text-sm text-gray-500">
-                              Preview package ZIP
-                            </div>
-                            <div className="text-xs text-gray-400 mt-2">
-                              Contains dist/ + preview-meta.json
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Upload Progress & Actions */}
-            <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-                <CardTitle className="flex items-center gap-2">
-                  <Rocket className="h-5 w-5" />
-                  Ready to Launch
-                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 {/* Upload Progress */}
                 {loading && (
                   <div className="space-y-3 mb-6">
                     <div className="flex justify-between text-sm">
-                      <span className="font-medium">Uploading...</span>
+                      <span className="font-medium">Updating...</span>
                       <span className="font-bold">{uploadProgress}%</span>
                     </div>
                     <Progress value={uploadProgress} className="h-2" />
@@ -731,7 +934,7 @@ const UploadTemplate = () => {
                 {uploadError && !uploadSuccess && (
                   <Alert variant="destructive" className="mb-6 animate-in slide-in-from-top">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Upload Error</AlertTitle>
+                    <AlertTitle>Update Error</AlertTitle>
                     <AlertDescription>{uploadError}</AlertDescription>
                   </Alert>
                 )}
@@ -742,7 +945,7 @@ const UploadTemplate = () => {
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <AlertTitle className="text-green-800">Success!</AlertTitle>
                     <AlertDescription className="text-green-700">
-                      Template uploaded successfully! Redirecting...
+                      Template updated successfully! Redirecting...
                     </AlertDescription>
                   </Alert>
                 )}
@@ -751,18 +954,18 @@ const UploadTemplate = () => {
                 <div className="space-y-3">
                   <Button
                     onClick={handleSubmit}
-                    disabled={loading || !templateFile || !previewFile}
-                    className="w-full h-12 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    disabled={loading}
+                    className="w-full h-12 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700"
                   >
                     {loading ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Uploading...
+                        Updating...
                       </>
                     ) : (
                       <>
-                        <Rocket className="h-5 w-5 mr-2" />
-                        Publish Template
+                        <Save className="h-5 w-5 mr-2" />
+                        Save Changes
                       </>
                     )}
                   </Button>
@@ -774,28 +977,65 @@ const UploadTemplate = () => {
                     disabled={loading}
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Cancel Upload
+                    Cancel
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Guidelines Card */}
+            {/* Preview URL */}
+            {existingFiles.preview_url && (
+              <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Link className="h-5 w-5" />
+                    Live Preview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-3">
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Globe className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-medium">Preview URL</span>
+                      </div>
+                      <a 
+                        href={existingFiles.preview_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline break-all"
+                      >
+                        {existingFiles.preview_url}
+                      </a>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => window.open(existingFiles.preview_url, '_blank')}
+                    >
+                      <Eye className="h-4 w-4" />
+                      Open Preview
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Guidelines */}
             <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50">
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  Upload Guidelines
+                  Update Guidelines
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 <ul className="space-y-3">
                   {[
-                    { icon: <FileArchive className="h-4 w-4 text-blue-500" />, text: "Template ZIP: Full React project for download" },
-                    { icon: <Package className="h-4 w-4 text-purple-500" />, text: "Preview ZIP: project_name/dist/ + preview-meta.json" },
-                    { icon: <Globe className="h-4 w-4 text-green-500" />, text: "Preview will be available at: preview.templamart.com" },
-                    { icon: <Download className="h-4 w-4 text-amber-500" />, text: "Max file size: 100MB per ZIP" },
-                    { icon: <Sparkles className="h-4 w-4 text-pink-500" />, text: "Product image auto-generated from preview" },
+                    { icon: <RefreshCw className="h-4 w-4 text-blue-500" />, text: "Files are optional - leave empty to keep existing" },
+                    { icon: <Cloud className="h-4 w-4 text-purple-500" />, text: "Uploading new files will replace old ones immediately" },
+                    { icon: <Link className="h-4 w-4 text-green-500" />, text: "Preview URL updates automatically with new preview" },
+                    { icon: <Rocket className="h-4 w-4 text-amber-500" />, text: "Changes take effect immediately after saving" },
                   ].map((item, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <div className="p-1 bg-gray-50 rounded-lg mt-0.5">
@@ -806,12 +1046,35 @@ const UploadTemplate = () => {
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter className="bg-gray-50 border-t">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Shield className="h-4 w-4" />
-                  Your files are secured with 256-bit encryption
+            </Card>
+
+            {/* Changes Summary */}
+            <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-sm">Changes Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Template File</span>
+                    <Badge variant={templateFile ? "default" : "outline"}>
+                      {templateFile ? "Updated" : "Same"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Preview File</span>
+                    <Badge variant={previewFile ? "default" : "outline"}>
+                      {previewFile ? "Updated" : "Same"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Information</span>
+                    <Badge variant="default">
+                      Modified
+                    </Badge>
+                  </div>
                 </div>
-              </CardFooter>
+              </CardContent>
             </Card>
           </div>
         </div>
@@ -839,4 +1102,4 @@ const PenTool = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export default UploadTemplate;
+export default EditTemplate;

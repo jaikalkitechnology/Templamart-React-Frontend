@@ -234,8 +234,7 @@ const Contact = () => {
                   }
                 />
                 <label htmlFor="terms" className="text-sm font-medium">
-                  I agree to get updates, offers & promos via SMS, RCS &
-                  WhatsApp.
+                  I Agree to Receive Updates, Offers, and Promotions via SMS, RCS, and WhatsApp.
                 </label>
               </div>
 

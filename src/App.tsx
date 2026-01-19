@@ -57,6 +57,10 @@ import ScrollToTopButton from '../src/pages/ScrollToTopButton';
 //Default Meta
 import DefaultMeta from "./DefaultMeta";
 import AboutUs from './pages/aboutus';
+import SellerKYCPage from './pages/seller/SellerKYCPage';
+import EditTemplate from './components/sellerKyc/EditTemplate';
+import TxnsManagement from './pages/admin/TxnsManagement';
+import ContactSellerManagement from './pages/admin/ContactSeller';
 
 const queryClient = new QueryClient();
 
@@ -109,7 +113,9 @@ const App = () => (
                 <Route path="sales" element={<SellerSales />} />
                 <Route path="analytics" element={<SellerAnalytics />} />
                 <Route path="wallet" element={<SellerWallet />} />
+                <Route path="kyc" element={<SellerKYCPage />} />
                 <Route path="settings" element={<SellerSettings />} />
+                <Route path="templates/edit/:product_token" element={<EditTemplate />} />
               </Route>
 
               {/* Admin Dashboard Routes */}
@@ -129,6 +135,8 @@ const App = () => (
                 <Route path="sales" element={<SalesManagement />} />
                 <Route path="analytics" element={<AnalyticsManagement />} />
                 <Route path="wallet" element={<WalletManagement />} />
+                <Route path="reports" element={< TxnsManagement />} />
+                <Route path="contactSellers" element={<ContactSellerManagement />} />
                 <Route path="settings" element={<AdminSettings />} />
               </Route>
 

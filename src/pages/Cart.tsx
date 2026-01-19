@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { X } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useShoppingContext } from "@/context/ShoppingContext";
 
@@ -13,12 +12,13 @@ const Cart = () => {
   const { cart, removeFromCart, clearCart, addToCart } = useShoppingContext();
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [activePreview, setActivePreview] = useState<string | null>(null);
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal - discount;
 
   const handleApplyCoupon = () => {
-    if (couponCode.toLowerCase() === "discount20") {
+    if (couponCode.toLowerCase() === "discount10") {
       const discountAmount = subtotal * 0.1;
       setDiscount(discountAmount);
       toast.success("Coupon applied", {
@@ -51,6 +51,32 @@ const Cart = () => {
     }
   };
 
+  // Function to get website URL from item
+  const getWebsiteUrl = (item) => {
+    // If item has a website property, use it
+    if (item.website) return item.website;
+    
+    // If item has a liveDemoUrl or previewUrl, use it
+    if (item.liveDemoUrl) return item.liveDemoUrl;
+    if (item.previewUrl) return item.previewUrl;
+    
+    // If image is a URL, you might want to use a placeholder instead
+    // For now, return the image URL as fallback (but it's not a website)
+    return item.image;
+  };
+
+  // Function to check if URL is embeddable
+  const isEmbeddableUrl = (url) => {
+    if (!url) return false;
+    try {
+      const urlObj = new URL(url);
+      // Check if it's a web URL (http/https)
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <div className="container py-8">
       <h1 className="text-3xl font-bold">Your Cart</h1>
@@ -65,60 +91,151 @@ const Cart = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex items-start space-x-4">
-                      <div className="h-20 w-20 overflow-hidden rounded-md">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium">
-                          <Link
-                            to={`/template/${item.id}`}
-                            className="hover:text-primary hover:underline"
+                  {cart.map((item) => {
+                    const websiteUrl = getWebsiteUrl(item);
+                    const isEmbeddable = isEmbeddableUrl(websiteUrl);
+                    
+                    return (
+                      <div key={item.id} className="flex items-start space-x-4">
+                        <div className="h-40 w-40 overflow-hidden rounded-md border bg-gray-100 relative group">
+                          {isEmbeddable ? (
+                            <>
+                              <iframe
+                                src={websiteUrl}
+                                title={`${item.title} Preview`}
+                                className="h-full w-full"
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                                loading="lazy"
+                                style={{ border: 'none' }}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="absolute bottom-2 right-2 h-6 px-2 text-xs"
+                                  onClick={() => setActivePreview(activePreview === item.id ? null : item.id)}
+                                >
+                                  {activePreview === item.id ? 'Minimize' : 'Expand'}
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <img
+                              src={item.image}
+                              alt={item.title}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                        </div>
+                        
+                        {/* Expanded Preview Modal */}
+                        {activePreview === item.id && isEmbeddable && (
+                          <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-lg w-full max-w-6xl h-[80vh] flex flex-col">
+                              <div className="flex items-center justify-between p-4 border-b">
+                                <div>
+                                  <h3 className="font-semibold">{item.title} - Live Preview</h3>
+                                  <p className="text-sm text-muted-foreground">{websiteUrl}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                  >
+                                    <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      Open in New Tab
+                                    </a>
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => setActivePreview(null)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex-1 overflow-hidden">
+                                <iframe
+                                  src={websiteUrl}
+                                  title={`${item.title} Full Preview`}
+                                  className="h-full w-full"
+                                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation"
+                                  allowFullScreen
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex-1">
+                          <h3 className="font-medium">
+                            <Link
+                              to={`/template/${item.id}`}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {item.title}
+                            </Link>
+                          </h3>
+                          <p className="text-muted-foreground">
+                            Single license
+                          </p>
+                          {isEmbeddable && (
+                            <div className="mt-1">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                                asChild
+                              >
+                                <a 
+                                  href={websiteUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Visit Live Website
+                                </a>
+                              </Button>
+                            </div>
+                          )}
+                          <div className="mt-2 flex items-center">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-7 w-7"
+                              onClick={() => updateQuantity(item, item.quantity - 1)}
+                            >
+                              -
+                            </Button>
+                            <span className="mx-2 min-w-[30px] text-center">{item.quantity}</span>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-7 w-7"
+                              onClick={() => updateQuantity(item, item.quantity + 1)}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => removeFromCart(item.id)}
                           >
-                            {item.title}
-                          </Link>
-                        </h3>
-                        <p className="text-muted-foreground">
-                          Single license
-                        </p>
-                        <div className="mt-2 flex items-center">
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7"
-                            onClick={() => updateQuantity(item, item.quantity - 1)}
-                          >
-                            -
-                          </Button>
-                          <span className="mx-2 min-w-[30px] text-center">{item.quantity}</span>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7"
-                            onClick={() => updateQuantity(item, item.quantity + 1)}
-                          >
-                            +
+                            <X className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => removeFromCart(item.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">

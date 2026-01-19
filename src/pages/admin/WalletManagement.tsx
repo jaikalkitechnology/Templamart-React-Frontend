@@ -1,459 +1,765 @@
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { BASE_URL } from "@/config";
-import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-interface PayoutRequest {
-  id: string;
-  sellerId: string;
-  sellerName: string;
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { 
+  Search, 
+  CreditCard, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  CheckCircle,
+  XCircle,
+  ArrowRightLeft,
+  Wallet
+} from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
+
+// ============================================================
+// Type Definitions
+// ============================================================
+
+interface WalletTransactionItem {
+  id: number;
+  txn_id: string;
+  order_id: string;
+  seller_id: number;
+  seller_username: string;
+  seller_email: string;
+  wallet_balance: number;
+  payout_wallet_balance: number;
+  transaction_type: string;
+  credit_debit: string;
   amount: number;
-  requestDate: string;
-  status: "pending" | "completed" | "rejected"| "approved" | "failed";
-  paymentMethod: string;
+  settle_amount: number;
+  balance_amount: number;
+  gst: number;
+  status: string;
+  description: string | null;
+  created_at: string;
 }
-interface Wallet {
-  totalWalletBalance: number;
+
+interface SellerOption {
+  seller_id: number;
+  username: string;
+  email: string;
+  wallet_balance: number;
+  payout_wallet_balance: number;
 }
-const mockPayoutRequests: PayoutRequest[] = [
-  {
-    id: "pr1",
-    sellerId: "s1",
-    sellerName: "John Designer",
-    amount: 250,
-    requestDate: "2023-06-15",
-    status: "pending",
-    paymentMethod: "PayPal"
-  },
-  {
-    id: "pr2",
-    sellerId: "s2",
-    sellerName: "WebCraft Studios",
-    amount: 480,
-    requestDate: "2023-06-14",
-    status: "pending",
-    paymentMethod: "Bank Transfer"
-  },
-  {
-    id: "pr3",
-    sellerId: "s3",
-    sellerName: "PresentPro",
-    amount: 120,
-    requestDate: "2023-06-10",
-    status: "approved",
-    paymentMethod: "PayPal"
-  },
-  {
-    id: "pr4",
-    sellerId: "s4",
-    sellerName: "EmailMasters",
-    amount: 350,
-    requestDate: "2023-06-05",
-    status: "rejected",
-    paymentMethod: "Stripe"
-  }
-];
+
+// ============================================================
+// Main Component
+// ============================================================
 
 const WalletManagement = () => {
-  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
-  const [commissionRate, setCommissionRate] = useState("30");
-  const [isCommissionDialogOpen, setIsCommissionDialogOpen] = useState(false);
-  const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
-  const [isPayoutDialogOpen, setIsPayoutDialogOpen] = useState(false);
   const { user } = useAuth();
+  
+  // State management
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    const fetchSales = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/admin/payout-requests`,
-              { headers: { Authorization: `Bearer ${user.token}` },}
-         );
-         setPayoutRequests(response.data);
-      }
-      
-      
-      catch (error) {
-        console.error("Failed to fetch sales:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSales();
-  }, []);
-  //const totalWalletBalance = 12450.75;
-  //const [totalWalletBalance1, settotalWalletBalance] = useState<Wallet[]>([]);
-  const [totalWalletBalance, setTotalWalletBalance] = useState(0);
-
-  useEffect(() => {
-    const fetchWalletBalance = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/admin/total-wallet-balance`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-        setTotalWalletBalance(response.data.total_balance);
-      } catch (error) {
-        console.error("Failed to fetch wallet balance:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const [activeTab, setActiveTab] = useState("settlements");
   
-    fetchWalletBalance();
-  }, []);
+  // Settlements (Wallet → Payout Wallet)
+  const [pendingSettlements, setPendingSettlements] = useState<WalletTransactionItem[]>([]);
+  const [settlementSearch, setSettlementSearch] = useState("");
+  const [settlementSellerFilter, setSettlementSellerFilter] = useState<string>("all");
   
-  const pendingPayouts = payoutRequests
-    .filter(req => req.status === "pending")
-    .reduce((total, req) => total + req.amount, 0);
+  // Payouts (Payout Wallet → External)
+  const [pendingPayouts, setPendingPayouts] = useState<WalletTransactionItem[]>([]);
+  const [payoutSearch, setPayoutSearch] = useState("");
+  const [payoutSellerFilter, setPayoutSellerFilter] = useState<string>("all");
+  
+  // Sellers list
+  const [sellers, setSellers] = useState<SellerOption[]>([]);
+  
+  // Manual settlement dialog
+  const [showManualDialog, setShowManualDialog] = useState(false);
+  const [manualSellerId, setManualSellerId] = useState<string>("");
+  const [manualAmount, setManualAmount] = useState<string>("");
+  const [manualDescription, setManualDescription] = useState<string>("");
+  
+  // Confirmation dialogs
+  const [confirmDialog, setConfirmDialog] = useState<{
+    show: boolean;
+    type: 'settlement' | 'approve-payout' | 'reject-payout' | null;
+    transaction: WalletTransactionItem | null;
+  }>({
+    show: false,
+    type: null,
+    transaction: null
+  });
 
-  const handleCommissionUpdate = () => {
-    const rate = parseFloat(commissionRate);
-    if (isNaN(rate) || rate < 0 || rate > 100) {
-      toast.error("Please enter a valid commission rate between 0 and 100");
+  // ============================================================
+  // API Calls
+  // ============================================================
+
+  const fetchPendingSettlements = async () => {
+    try {
+      const params: any = { limit: 100 };
+      if (settlementSellerFilter !== "all") {
+        params.seller_id = settlementSellerFilter;
+      }
+
+      const res = await axios.get(`${BASE_URL}/dash/wallet-management/pending-settlements`, {
+        headers: { Authorization: `Bearer ${user?.token}` },
+        params,
+      });
+      setPendingSettlements(res.data);
+    } catch (error) {
+      console.error("Error fetching pending settlements:", error);
+      toast.error("Failed to load pending settlements");
+    }
+  };
+
+  const fetchPendingPayouts = async () => {
+    try {
+      const params: any = { limit: 100 };
+      if (payoutSellerFilter !== "all") {
+        params.seller_id = payoutSellerFilter;
+      }
+
+      const res = await axios.get(`${BASE_URL}/dash/wallet-management/pending-payouts`, {
+        headers: { Authorization: `Bearer ${user?.token}` },
+        params,
+      });
+      setPendingPayouts(res.data);
+    } catch (error) {
+      console.error("Error fetching pending payouts:", error);
+      toast.error("Failed to load pending payouts");
+    }
+  };
+
+  const fetchSellers = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/dash/wallet-management/sellers-list`, {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      });
+      setSellers(res.data);
+    } catch (error) {
+      console.error("Error fetching sellers:", error);
+    }
+  };
+
+  const approveSettlement = async (transactionId: number, sellerId: number) => {
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/dash/wallet-management/approve-settlement`,
+        { transaction_id: transactionId, seller_id: sellerId },
+        { headers: { Authorization: `Bearer ${user?.token}` } }
+      );
+      
+      toast.success(res.data.message);
+      fetchPendingSettlements();
+      fetchSellers();
+    } catch (error: any) {
+      console.error("Error approving settlement:", error);
+      toast.error(error.response?.data?.detail || "Failed to approve settlement");
+    }
+  };
+
+  const handlePayoutAction = async (transactionId: number, sellerId: number, action: 'approve' | 'reject') => {
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/dash/wallet-management/payout-action`,
+        { transaction_id: transactionId, seller_id: sellerId, action },
+        { headers: { Authorization: `Bearer ${user?.token}` } }
+      );
+      
+      toast.success(res.data.message);
+      fetchPendingPayouts();
+      fetchSellers();
+    } catch (error: any) {
+      console.error("Error processing payout:", error);
+      toast.error(error.response?.data?.detail || "Failed to process payout");
+    }
+  };
+
+  const createManualSettlement = async () => {
+    if (!manualSellerId || !manualAmount) {
+      toast.error("Please select seller and enter amount");
       return;
     }
-    
-    toast.success("Commission rate updated", {
-      description: `Commission rate has been set to ${rate}%`
-    });
-    
-    setIsCommissionDialogOpen(false);
+
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/dash/wallet-management/create-settlement`,
+        null,
+        {
+          params: {
+            seller_id: parseInt(manualSellerId),
+            amount: parseFloat(manualAmount),
+            description: manualDescription || undefined
+          },
+          headers: { Authorization: `Bearer ${user?.token}` }
+        }
+      );
+      
+      toast.success(res.data.message);
+      setShowManualDialog(false);
+      setManualSellerId("");
+      setManualAmount("");
+      setManualDescription("");
+      fetchPendingSettlements();
+      fetchSellers();
+    } catch (error: any) {
+      console.error("Error creating manual settlement:", error);
+      toast.error(error.response?.data?.detail || "Failed to create settlement");
+    }
   };
 
-  const handlePayoutAction = async (action: "approve" | "reject") => {
-    if (!selectedPayout) return;
-  
-    try {
-      await axios.post(
-        `${BASE_URL}/admin/payout-action`,
-        {
-          payout_id: selectedPayout.id,
-          action: action
-        },
-        {
-          headers: {
-           Authorization: `Bearer ${user.token}`
-          }
-        }
-      );
-  
-      setPayoutRequests(prev =>
-        prev.map(req =>
-          req.id === selectedPayout.id
-            ? { ...req, status: action === "approve" ? "approved" : "rejected" }
-            : req
-        )
-      );
-  
-      toast.success(
-        action === "approve"
-          ? "Payout request approved"
-          : "Payout request rejected",
-        {
-          description:
-            action === "approve"
-              ? `Payout of ₹${selectedPayout.amount.toFixed(2)} to ${selectedPayout.sellerName} has been approved`
-              : `Payout request from ${selectedPayout.sellerName} has been rejected`
-        }
-      );
-    } catch (error) {
-      console.error("Failed to update payout status", error);
-      toast.error("Action failed", {
-        description: error?.response?.data?.detail || "Server error"
-      });
+  // ============================================================
+  // Effects
+  // ============================================================
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchPendingSettlements(),
+        fetchPendingPayouts(),
+        fetchSellers(),
+      ]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchPendingSettlements();
     }
-  
-    setIsPayoutDialogOpen(false);
-    setSelectedPayout(null);
+  }, [settlementSellerFilter]);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchPendingPayouts();
+    }
+  }, [payoutSellerFilter]);
+
+  // ============================================================
+  // Filters
+  // ============================================================
+
+  const filteredSettlements = pendingSettlements.filter(txn => {
+    if (settlementSearch === "") return true;
+    const search = settlementSearch.toLowerCase();
+    return (
+      txn.seller_username.toLowerCase().includes(search) ||
+      txn.seller_email.toLowerCase().includes(search) ||
+      txn.txn_id.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredPayouts = pendingPayouts.filter(txn => {
+    if (payoutSearch === "") return true;
+    const search = payoutSearch.toLowerCase();
+    return (
+      txn.seller_username.toLowerCase().includes(search) ||
+      txn.seller_email.toLowerCase().includes(search) ||
+      txn.txn_id.toLowerCase().includes(search)
+    );
+  });
+
+  // ============================================================
+  // Handlers
+  // ============================================================
+
+  const handleConfirmAction = () => {
+    if (!confirmDialog.transaction) return;
+
+    const { type, transaction } = confirmDialog;
+    
+    if (type === 'settlement') {
+      approveSettlement(transaction.id, transaction.seller_id);
+    } else if (type === 'approve-payout') {
+      handlePayoutAction(transaction.id, transaction.seller_id, 'approve');
+    } else if (type === 'reject-payout') {
+      handlePayoutAction(transaction.id, transaction.seller_id, 'reject');
+    }
+
+    setConfirmDialog({ show: false, type: null, transaction: null });
   };
+
+  // ============================================================
+  // Stats Calculations
+  // ============================================================
+
+  const settlementStats = {
+    total: filteredSettlements.length,
+    totalAmount: filteredSettlements.reduce((sum, t) => sum + t.settle_amount, 0),
+  };
+
+  const payoutStats = {
+    total: filteredPayouts.length,
+    totalAmount: filteredPayouts.reduce((sum, t) => sum + t.amount, 0),
+  };
+
+  // ============================================================
+  // Render
+  // ============================================================
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Wallet Management</h2>
-        <p className="text-muted-foreground">
-          Manage platform wallet, commissions, and seller payout requests.
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Wallet Management</h2>
+          <p className="text-muted-foreground">
+            Manage settlements and payout approvals
+          </p>
+        </div>
+        <Button onClick={() => setShowManualDialog(true)}>
+          <ArrowRightLeft className="h-4 w-4 mr-2" />
+          Manual Settlement
+        </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Platform Wallet Balance
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Pending Settlements</CardTitle>
+              <ArrowRightLeft className="h-4 w-4 text-blue-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalWalletBalance.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {settlementStats.total}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Total accumulated commissions
+              Total: {formatCurrency(settlementStats.totalAmount)}
             </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Current Commission Rate
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Pending Payouts</CardTitle>
+              <ArrowDownRight className="h-4 w-4 text-orange-500" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{commissionRate}%</div>
-            <Dialog open={isCommissionDialogOpen} onOpenChange={setIsCommissionDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="link" className="h-auto p-0 text-xs">
-                  Change Commission Rate
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Update Commission Rate</DialogTitle>
-                  <DialogDescription>
-                    Set the percentage that the platform will take from each sale.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="commissionRate" className="text-right">
-                      Rate (%)
-                    </Label>
+            <div className="text-2xl font-bold text-orange-600">
+              {payoutStats.total}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total: {formatCurrency(payoutStats.totalAmount)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="settlements">
+            Pending Settlements ({settlementStats.total})
+          </TabsTrigger>
+          <TabsTrigger value="payouts">
+            Pending Payouts ({payoutStats.total})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* SETTLEMENTS TAB */}
+        <TabsContent value="settlements" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
-                      id="commissionRate"
-                      type="number"
-                      value={commissionRate}
-                      onChange={(e) => setCommissionRate(e.target.value)}
-                      className="col-span-3"
-                      min="0"
-                      max="100"
-                      step="0.1"
+                      placeholder="Search by seller or transaction ID..."
+                      value={settlementSearch}
+                      onChange={(e) => setSettlementSearch(e.target.value)}
+                      className="pl-10"
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCommissionDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCommissionUpdate}>Update Rate</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Pending Payouts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${pendingPayouts.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+                <Select value={settlementSellerFilter} onValueChange={setSettlementSellerFilter}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Filter by Seller" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sellers</SelectItem>
+                    {sellers.map((seller) => (
+                      <SelectItem key={seller.seller_id} value={seller.seller_id.toString()}>
+                        {seller.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
-      <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="pending">Pending Requests</TabsTrigger>
-          <TabsTrigger value="approved">Approved Payouts</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected Requests</TabsTrigger>
-        </TabsList>
-        <TabsContent value="pending">
+          {/* Settlements Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Pending Payout Requests</CardTitle>
+              <CardTitle>Pending Settlements</CardTitle>
               <CardDescription>
-                Review and process seller payout requests.
+                Transfer amounts from wallet to payout wallet
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {payoutRequests
-                  .filter(req => req.status === "pending")
-                  .map((request) => (
-                    <div
-                      key={request.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="font-medium">{request.sellerName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Requested on {new Date(request.requestDate).toLocaleDateString()} | 
-                          {request.paymentMethod}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-semibold">
-                          ${request.amount.toFixed(2)}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedPayout(request);
-                            setIsPayoutDialogOpen(true);
-                          }}
-                        >
-                          Process
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                {payoutRequests.filter(req => req.status === "pending").length === 0 && (
-                  <div className="py-6 text-center text-muted-foreground">
-                    No pending payout requests
-                  </div>
-                )}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Seller</TableHead>
+                      <TableHead>Wallet Balance</TableHead>
+                      <TableHead>Payout Balance</TableHead>
+                      <TableHead>Settlement Amount</TableHead>
+                      <TableHead>Transaction ID</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSettlements.map((txn) => (
+                      <TableRow key={txn.id}>
+                        <TableCell className="text-sm">
+                          {formatDate(txn.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{txn.seller_username}</p>
+                            <p className="text-sm text-muted-foreground">{txn.seller_email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold text-blue-600">
+                          {formatCurrency(txn.wallet_balance)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-green-600">
+                          {formatCurrency(txn.payout_wallet_balance)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-bold text-lg">
+                            {formatCurrency(txn.settle_amount)}
+                          </div>
+                          {txn.gst > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              GST: {formatCurrency(txn.gst)}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {txn.txn_id}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => setConfirmDialog({
+                              show: true,
+                              type: 'settlement',
+                              transaction: txn
+                            })}
+                            disabled={txn.wallet_balance < txn.settle_amount}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Approve Transfer
+                          </Button>
+                          {txn.wallet_balance < txn.settle_amount && (
+                            <p className="text-xs text-red-500 mt-1">Insufficient balance</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="approved">
+
+        {/* PAYOUTS TAB */}
+        <TabsContent value="payouts" className="space-y-4">
+          {/* Filters */}
           <Card>
-            <CardHeader>
-              <CardTitle>Approved Payouts</CardTitle>
-              <CardDescription>
-                History of approved and processed payouts.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {payoutRequests
-                  .filter(req => req.status === "completed")
-                  .map((request) => (
-                    <div
-                      key={request.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="font-medium">{request.sellerName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Requested on {new Date(request.requestDate).toLocaleDateString()} | 
-                          {request.paymentMethod}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-semibold">
-                          ${request.amount.toFixed(2)}
-                        </span>
-                        <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                          Approved
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                {payoutRequests.filter(req => req.status === "approved").length === 0 && (
-                  <div className="py-6 text-center text-muted-foreground">
-                    No approved payouts
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="Search by seller or transaction ID..."
+                      value={payoutSearch}
+                      onChange={(e) => setPayoutSearch(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
-                )}
+                </div>
+                <Select value={payoutSellerFilter} onValueChange={setPayoutSellerFilter}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Filter by Seller" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sellers</SelectItem>
+                    {sellers.map((seller) => (
+                      <SelectItem key={seller.seller_id} value={seller.seller_id.toString()}>
+                        {seller.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="rejected">
+
+          {/* Payouts Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Rejected Payout Requests</CardTitle>
+              <CardTitle>Pending Payouts</CardTitle>
               <CardDescription>
-                History of rejected payout requests.
+                Approve or reject payout requests
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {payoutRequests
-                  .filter(req => req.status === "rejected")
-                  .map((request) => (
-                    <div
-                      key={request.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="font-medium">{request.sellerName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Requested on {new Date(request.requestDate).toLocaleDateString()} | 
-                          {request.paymentMethod}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-semibold">
-                          ${request.amount.toFixed(2)}
-                        </span>
-                        <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
-                          Rejected
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                {payoutRequests.filter(req => req.status === "rejected").length === 0 && (
-                  <div className="py-6 text-center text-muted-foreground">
-                    No rejected payout requests
-                  </div>
-                )}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Seller</TableHead>
+                      <TableHead>Payout Balance</TableHead>
+                      <TableHead>Payout Amount</TableHead>
+                      <TableHead>Transaction ID</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPayouts.map((txn) => (
+                      <TableRow key={txn.id}>
+                        <TableCell className="text-sm">
+                          {formatDate(txn.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{txn.seller_username}</p>
+                            <p className="text-sm text-muted-foreground">{txn.seller_email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold text-green-600">
+                          {formatCurrency(txn.payout_wallet_balance)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-bold text-lg text-red-600">
+                            {formatCurrency(txn.amount)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {txn.txn_id}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                          {txn.description || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => setConfirmDialog({
+                                show: true,
+                                type: 'approve-payout',
+                                transaction: txn
+                              })}
+                              disabled={txn.payout_wallet_balance < txn.amount}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setConfirmDialog({
+                                show: true,
+                                type: 'reject-payout',
+                                transaction: txn
+                              })}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                          {txn.payout_wallet_balance < txn.amount && (
+                            <p className="text-xs text-red-500 mt-1">Insufficient balance</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Payout processing dialog */}
-      {selectedPayout && (
-        <Dialog open={isPayoutDialogOpen} onOpenChange={setIsPayoutDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Process Payout Request</DialogTitle>
-              <DialogDescription>
-                Review and take action on this payout request.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Seller:</span>
-                  <span className="font-medium">{selectedPayout.sellerName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount:</span>
-                  <span className="font-medium">${selectedPayout.amount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Request Date:</span>
-                  <span className="font-medium">
-                    {new Date(selectedPayout.requestDate).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Payment Method:</span>
-                  <span className="font-medium">{selectedPayout.paymentMethod}</span>
-                </div>
-              </div>
+      {/* Manual Settlement Dialog */}
+      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Manual Settlement</DialogTitle>
+            <DialogDescription>
+              Transfer amount from seller's wallet to payout wallet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Seller</label>
+              <Select value={manualSellerId} onValueChange={setManualSellerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose seller..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {sellers.map((seller) => (
+                    <SelectItem key={seller.seller_id} value={seller.seller_id.toString()}>
+                      {seller.username} - Wallet: {formatCurrency(seller.wallet_balance)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <DialogFooter className="flex space-x-2">
-              <Button 
-                variant="destructive" 
-                onClick={() => handlePayoutAction("reject")}
-              >
-                Reject
-              </Button>
-              <Button 
-                onClick={() => handlePayoutAction("approve")}
-              >
-                Approve Payout
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount</label>
+              <Input
+                type="number"
+                placeholder="Enter amount..."
+                value={manualAmount}
+                onChange={(e) => setManualAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description (Optional)</label>
+              <Input
+                placeholder="Enter description..."
+                value={manualDescription}
+                onChange={(e) => setManualDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManualDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createManualSettlement}>
+              Create Settlement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDialog.show} onOpenChange={(open) => 
+        setConfirmDialog({ ...confirmDialog, show: open })
+      }>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmDialog.type === 'settlement' && 'Confirm Settlement Transfer'}
+              {confirmDialog.type === 'approve-payout' && 'Approve Payout'}
+              {confirmDialog.type === 'reject-payout' && 'Reject Payout'}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDialog.transaction && (
+                <div className="space-y-2 mt-4">
+                  <p><strong>Seller:</strong> {confirmDialog.transaction.seller_username}</p>
+                  <p><strong>Amount:</strong> {formatCurrency(
+                    confirmDialog.type === 'settlement' 
+                      ? confirmDialog.transaction.settle_amount 
+                      : confirmDialog.transaction.amount
+                  )}</p>
+                  {confirmDialog.type === 'settlement' && (
+                    <>
+                      <p><strong>Current Wallet:</strong> {formatCurrency(confirmDialog.transaction.wallet_balance)}</p>
+                      <p><strong>Current Payout Wallet:</strong> {formatCurrency(confirmDialog.transaction.payout_wallet_balance)}</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Amount will be transferred from wallet to payout wallet.
+                      </p>
+                    </>
+                  )}
+                  {confirmDialog.type === 'approve-payout' && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Amount will be deducted from payout wallet.
+                    </p>
+                  )}
+                  {confirmDialog.type === 'reject-payout' && (
+                    <p className="text-sm text-red-600 mt-2">
+                      Payout will be rejected. Amount will remain in payout wallet.
+                    </p>
+                  )}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setConfirmDialog({ show: false, type: null, transaction: null })}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmAction}
+              variant={confirmDialog.type === 'reject-payout' ? 'destructive' : 'default'}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

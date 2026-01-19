@@ -14,12 +14,14 @@ type User = {
   token: string;
   username: string;
   expiry: number; // ✅ add expiry time in ms
+  isKYCVerified?: boolean;
 };
 
 type AuthContextType = {
   isAuthenticated: boolean;
   currentUser: User | null;
   user: User | null;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -29,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   currentUser: null,
   user: null,
+  isLoading: true,
   login: async () => {},
   logout: () => {},
 });
@@ -119,15 +122,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     navigate("/login");
   };
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+  const savedUser = localStorage.getItem("user");
+
+  if (savedUser) {
+    try {
+      const parsedUser: User = JSON.parse(savedUser);
+
+      if (parsedUser.expiry > Date.now()) {
+        setUser(parsedUser);
+        scheduleLogout(parsedUser.expiry);
+      } else {
+        localStorage.removeItem("user");
+      }
+    } catch {
+      localStorage.removeItem("user");
+    }
+  }
+
+  setIsLoading(false); // ✅ VERY IMPORTANT
+}, []);
+
 
   return (
     <AuthContext.Provider
-      value={{
-        isAuthenticated: !!user,
-        currentUser: user,
-        user,
-        login,
-        logout,
+       value={{
+    isAuthenticated: !!user,
+    currentUser: user,
+    user,
+    isLoading,   // 👈 add this
+    login,
+    logout,
       }}
     >
       {children}

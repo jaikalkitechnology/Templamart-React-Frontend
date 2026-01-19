@@ -113,7 +113,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-8 border-t pt-8">
-          <p className="text-center text-sm text-muted-foreground"><a href="https://jaikalki.com/" className="text-blue-500" target="_blank">Jaikalki Technology</a>&nbsp;
+          <p className="text-center text-sm text-muted-foreground"><a href="https://rootpay.in/" className="text-blue-500" target="_blank">RootPay PVT LTD</a>&nbsp;
             © {new Date().getFullYear()} Templamart. All rights reserved.
           </p>
         </div>

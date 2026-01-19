@@ -8,12 +8,21 @@ const ProtectedRoute = ({
   children: JSX.Element;
   allowedRoles: number[];
 }) => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
-  if (!user) return <Navigate to="/login" />; // Not logged in
+  // ⏳ Wait until auth is restored
+  if (isLoading) {
+    return <div>Loading...</div>; // or spinner
+  }
 
+  // 🔐 Not logged in
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // ⛔ Role not allowed
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/" />; // Unauthorized
+    return <Navigate to="/" replace />;
   }
 
   return children;
