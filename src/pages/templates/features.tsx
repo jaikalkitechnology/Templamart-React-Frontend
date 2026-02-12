@@ -60,7 +60,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
-const TemplatesPage = () => {
+const FeaturesPage = () => {
   const [allTemplates, setAllTemplates] = useState([]);
   const [filteredTemplates, setFilteredTemplates] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -108,7 +108,7 @@ const TemplatesPage = () => {
         const [categoriesRes, sortRes, templatesRes] = await Promise.all([
           axios.get(`${BASE_URL}/product/categories`),
           axios.get(`${BASE_URL}/product/sort-options`),
-          axios.get(`${BASE_URL}/product/all-templates`, {
+          axios.get(`${BASE_URL}/product/featured`, {
             params: {
               search: searchQuery || undefined,
               category: category !== "all" ? category : undefined,
@@ -204,304 +204,7 @@ const TemplatesPage = () => {
    
 
       {/* Floating Filter Button */}
-      <div className="fixed bottom-6 left-6 z-40">
-        <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-          <SheetTrigger asChild>
-            <Button 
-              size="lg"
-              className="rounded-full shadow-2xl shadow-purple-500/30 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-14 w-14 md:h-16 md:w-16"
-            >
-              <Filter className="h-6 w-6" />
-              {activeFiltersCount > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-6 w-6 p-0 flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-2 border-background">
-                  {activeFiltersCount}
-                </Badge>
-              )}
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <SlidersHorizontal className="h-5 w-5" />
-                Filters & Settings
-              </SheetTitle>
-            </SheetHeader>
-            
-            <div className="mt-6 space-y-8">
-              {/* Category Filter */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    Category
-                  </Label>
-                  {category !== "all" && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setCategory("all")}
-                      className="h-6 text-xs"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                <Select 
-                  value={category} 
-                  onValueChange={(value) => setCategory(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      <div className="flex items-center gap-2">
-                        <LayoutGrid className="h-4 w-4" />
-                        All Categories
-                      </div>
-                    </SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500" />
-                          {cat.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Price Range */}
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <IndianRupee className="h-4 w-4" />
-                  Price Range
-                </Label>
-                <div className="space-y-4">
-                  <Slider
-                    value={priceRange}
-                    min={0}
-                    max={10000}
-                    step={100}
-                    onValueChange={(val) => setPriceRange(val)}
-                    className="[&>span]:bg-gradient-to-r [&>span]:from-blue-500 [&>span]:to-purple-500"
-                  />
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="px-3 py-1">
-                      ₹{priceRange[0]}
-                    </Badge>
-                    <div className="h-px w-4 bg-border"></div>
-                    <Badge variant="outline" className="px-3 py-1">
-                      ₹{priceRange[1]}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Filters */}
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkle className="h-4 w-4" />
-                  Quick Filters
-                </Label>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                      <Label htmlFor="free-only" className="cursor-pointer">
-                        Free Templates Only
-                      </Label>
-                    </div>
-                    <Checkbox 
-                      id="free-only" 
-                      checked={showFreeOnly}
-                      onCheckedChange={(checked) => setShowFreeOnly(!!checked)}
-                      className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-yellow-500 data-[state=checked]:to-amber-500"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <Star className="h-4 w-4 text-amber-500" />
-                      <Label htmlFor="rating-above-4" className="cursor-pointer">
-                        Rated 4+ Stars
-                      </Label>
-                    </div>
-                    <Checkbox 
-                      id="rating-above-4" 
-                      checked={ratingAbove4}
-                      onCheckedChange={(checked) => setRatingAbove4(!!checked)}
-                      className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-amber-500 data-[state=checked]:to-orange-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Sort Options */}
-              <div className="space-y-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <ArrowUpDown className="h-4 w-4" />
-                  Sort By
-                </Label>
-                <Select 
-                  value={sortBy} 
-                  onValueChange={(value) => setSortBy(value)}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      {getSortIcon(sortBy)}
-                      <SelectValue placeholder="Sort by" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          {getSortIcon(option.value)}
-                          {option.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Active Filters */}
-              {activeFiltersCount > 0 && (
-                <div className="space-y-4">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Check className="h-4 w-4" />
-                    Active Filters ({activeFiltersCount})
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {category !== "all" && (
-                      <Badge variant="secondary" className="gap-1 pl-3">
-                        {categories.find(c => c.value === category)?.name || category}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                          onClick={() => setCategory("all")}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    )}
-                    
-                    {(priceRange[0] > 0 || priceRange[1] < 10000) && (
-                      <Badge variant="secondary" className="gap-1 pl-3">
-                        ₹{priceRange[0]}-{priceRange[1]}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                          onClick={() => setPriceRange([0, 10000])}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    )}
-                    
-                    {showFreeOnly && (
-                      <Badge variant="secondary" className="gap-1 pl-3">
-                        Free Only
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                          onClick={() => setShowFreeOnly(false)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    )}
-                    
-                    {ratingAbove4 && (
-                      <Badge variant="secondary" className="gap-1 pl-3">
-                        4+ Stars
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                          onClick={() => setRatingAbove4(false)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    )}
-                    
-                    {searchQuery && (
-                      <Badge variant="secondary" className="gap-1 pl-3">
-                        "{searchQuery}"
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                          onClick={() => setSearchQuery("")}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Stats */}
-              <div className="space-y-4 pt-4 border-t">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Quick Stats
-                </Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 border-0">
-                    <CardContent className="p-3">
-                      <div className="text-lg font-bold text-blue-600">{stats.freeTemplates}</div>
-                      <div className="text-xs text-muted-foreground">Free</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/10 border-0">
-                    <CardContent className="p-3">
-                      <div className="text-lg font-bold text-amber-600 flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-500/20" />
-                        {stats.avgRating}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Avg Rating</div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-3 pt-4 border-t">
-                <Button 
-                  onClick={() => setIsFilterSheetOpen(false)}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                >
-                  Apply Filters
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={resetFilters}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Reset All Filters
-                </Button>
-                <Button 
-                  variant="ghost"
-                  onClick={() => setIsFilterSheetOpen(false)}
-                >
-                    <X className="h-4 w-4" />
-                  Close
-                        </Button>
-
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+   
 
       {/* Main Content Area */}
       <div className="px-4 sm:px-6 lg:px-8 py-6 md:py-8">
@@ -513,7 +216,7 @@ const TemplatesPage = () => {
                 {filteredTemplates.length > 0 ? (
                   <>
                     <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      {stats.totalTemplates} Amazing Templates
+                      {stats.totalTemplates} Featured Templates
                     </span>
                   </>
                 ) : (
@@ -801,4 +504,4 @@ const TemplatesPage = () => {
   );
 };
 
-export default TemplatesPage;
+export default FeaturesPage;

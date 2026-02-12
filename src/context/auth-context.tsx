@@ -13,7 +13,7 @@ type User = {
   role: number;
   token: string;
   username: string;
-  expiry: number; // ✅ add expiry time in ms
+  expiry: number;
   isKYCVerified?: boolean;
 };
 
@@ -26,7 +26,7 @@ type AuthContextType = {
   logout: () => void;
 };
 
-// Create context
+// Create context with proper defaults
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   currentUser: null,
@@ -38,31 +38,79 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
   const navigate = useNavigate();
+  const [logoutTimer, setLogoutTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Auto logout when token expires
   const scheduleLogout = (expiry: number) => {
+    // Clear any existing logout timer
+    if (logoutTimer) {
+      clearTimeout(logoutTimer);
+    }
+
     const timeout = expiry - Date.now();
+    
     if (timeout > 0) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         logout();
       }, timeout);
+      setLogoutTimer(timer);
     } else {
+      // Token already expired
       logout();
     }
   };
 
-  // Restore user from localStorage
+  // Initialize auth state from localStorage - runs once on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      const parsedUser: User = JSON.parse(savedUser);
-      if (Date.now() < parsedUser.expiry) {
-        setUser(parsedUser);
-        scheduleLogout(parsedUser.expiry);
-      } else {
-        logout();
+    const initializeAuth = () => {
+      try {
+        const savedUser = localStorage.getItem("user");
+        
+        if (savedUser) {
+          const parsedUser: User = JSON.parse(savedUser);
+          
+          // Check if token is still valid
+          if (parsedUser.expiry && parsedUser.expiry > Date.now()) {
+            setUser(parsedUser);
+            scheduleLogout(parsedUser.expiry);
+          } else {
+            // Token expired, clean up
+            localStorage.removeItem("user");
+            setUser(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+        localStorage.removeItem("user");
+        setUser(null);
+      } finally {
+        // Always set loading to false after initialization
+        setIsLoading(false);
       }
+    };
+
+    initializeAuth();
+
+    // Cleanup on unmount
+    return () => {
+      if (logoutTimer) {
+        clearTimeout(logoutTimer);
+      }
+    };
+  }, []); // Empty dependency array - runs once on mount
+
+  // Cookie consent effect
+  useEffect(() => {
+    try {
+      const consent = JSON.parse(localStorage.getItem("cookieConsent") || "{}");
+      if (consent.analytics) {
+        // Initialize analytics
+        console.log("Analytics initialized");
+      }
+    } catch (error) {
+      console.error("Error reading cookie consent:", error);
     }
   }, []);
 
@@ -81,26 +129,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!response.ok) {
-        throw new Error("Login failed");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Login failed");
       }
 
       const data = await response.json();
 
-      // decode JWT expiry (standard `exp` claim)
-      const payload = JSON.parse(atob(data.access_token.split(".")[1]));
-      const expiry = payload.exp * 1000; // convert to ms
+      // Decode JWT expiry (standard `exp` claim)
+      let expiry: number;
+      try {
+        const payload = JSON.parse(atob(data.access_token.split(".")[1]));
+        expiry = payload.exp * 1000; // convert to ms
+      } catch {
+        // Fallback: set expiry to 24 hours from now
+        expiry = Date.now() + 24 * 60 * 60 * 1000;
+      }
 
       const userData: User = {
         token: data.access_token,
         role: data.role,
         username: data.username,
         expiry,
+        isKYCVerified: data.isKYCVerified || false,
       };
 
+      // Save to localStorage
       localStorage.setItem("user", JSON.stringify(userData));
+      
+      // Update state
       setUser(userData);
 
-      // schedule auto logout
+      // Schedule auto logout
       scheduleLogout(expiry);
 
       // Redirect based on role
@@ -113,47 +172,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Login error:", error);
-      alert("Invalid username or password");
+      throw error; // Re-throw to handle in the component
     }
   };
 
+  // Logout function
   const logout = () => {
+    // Clear logout timer
+    if (logoutTimer) {
+      clearTimeout(logoutTimer);
+      setLogoutTimer(null);
+    }
+
+    // Clear localStorage
     localStorage.removeItem("user");
+    
+    // Clear state
     setUser(null);
+    
+    // Navigate to login
     navigate("/login");
   };
-  const [isLoading, setIsLoading] = useState(true);
-  useEffect(() => {
-  const savedUser = localStorage.getItem("user");
-
-  if (savedUser) {
-    try {
-      const parsedUser: User = JSON.parse(savedUser);
-
-      if (parsedUser.expiry > Date.now()) {
-        setUser(parsedUser);
-        scheduleLogout(parsedUser.expiry);
-      } else {
-        localStorage.removeItem("user");
-      }
-    } catch {
-      localStorage.removeItem("user");
-    }
-  }
-
-  setIsLoading(false); // ✅ VERY IMPORTANT
-}, []);
-
 
   return (
     <AuthContext.Provider
-       value={{
-    isAuthenticated: !!user,
-    currentUser: user,
-    user,
-    isLoading,   // 👈 add this
-    login,
-    logout,
+      value={{
+        isAuthenticated: !!user,
+        currentUser: user,
+        user,
+        isLoading,
+        login,
+        logout,
       }}
     >
       {children}
@@ -162,4 +211,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 // Custom hook
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  
+  return context;
+};

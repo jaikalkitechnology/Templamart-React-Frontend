@@ -31,6 +31,7 @@ import RefundPolicy from "@/pages/RefundPolicy";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import LicenseAgreement from "@/pages/License";
 import Contact from "./pages/Contact";
+
 // Seller Pages
 import SellerDashboard from "@/pages/seller/SellerDashboard";
 import SellerTemplates from "@/pages/seller/SellerTemplates";
@@ -51,7 +52,6 @@ import SalesManagement from "@/pages/admin/SalesManagement";
 import AnalyticsManagement from "@/pages/admin/AnalyticsManagement";
 import AdminSettings from "@/pages/admin/AdminSettings";
 
-
 import ScrollToTop from "./components/ScrollToTop"; 
 import ScrollToTopButton from '../src/pages/ScrollToTopButton';
 //Default Meta
@@ -61,13 +61,23 @@ import SellerKYCPage from './pages/seller/SellerKYCPage';
 import EditTemplate from './components/sellerKyc/EditTemplate';
 import TxnsManagement from './pages/admin/TxnsManagement';
 import ContactSellerManagement from './pages/admin/ContactSeller';
+import FeaturesPage from './pages/templates/features';
+import CategoriesPage from './pages/Categoriespage';
+import CookiesPolicy from './pages/Cookiespolicy';
+import CookieConsent from "./components/CookieConsent";
+import ProductsManagement from './pages/admin/Productsmanagement';
+import MyPurchases from './pages/account/Mypurchases';
+import ResetPassword from './pages/Resetpassword';
+import ForgotPassword from './pages/Forgotpassword';
+import UnsubscribePage from './pages/Unsubscribepage';
+import VerifyEmailPage from './pages/Verifyemailpage';
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <DefaultMeta />  {/* 🔥 Now this applies meta to all pages by default */}
+      <DefaultMeta />
       <AuthProvider>
         <TooltipProvider>
           <ShoppingProvider>
@@ -76,7 +86,7 @@ const App = () => (
             <ScrollToTopButton />
             <ScrollToTop />
             <Routes>
-              {/* Main Site Routes */}
+              {/* Main Site Routes (Public) */}
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
@@ -86,19 +96,51 @@ const App = () => (
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/become-seller" element={<BecomeSeller />} />
                 <Route path="/templates" element={<TemplatesPage />} />
+                <Route path="/featured" element={<FeaturesPage />} />
+                <Route path="/trending" element={<TemplatesPage />} />
                 <Route path="/template/:id" element={<TemplateDetails />} />
+                <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/category/:slug" element={<CategoryPage />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/refund" element={<RefundPolicy />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/license" element={<LicenseAgreement />} />
-                <Route path="account" element={<UserAccount />} />
-                <Route path="contact" element={<Contact />} />
-                <Route path="aboutus" element={<AboutUs />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/aboutus" element={<AboutUs />} />
+                <Route path="/cookies-policy" element={<CookiesPolicy />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} /> 
+                <Route path="/unsubscribe" element={<UnsubscribePage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
               </Route>
 
-              {/* Seller Dashboard Routes */}
+              {/* Protected User Account Route - Requires Authentication */}
+          {/* Account route */}
+                <Route
+                  path="/account"
+                  element={
+                    <ProtectedRoute allowedRoles={[1, 2, 3]}>
+                      <MainLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<UserAccount />} />
+                </Route>
 
+                {/* Separate purchases route */}
+                <Route
+                  path="/purchases"
+                  element={
+                    <ProtectedRoute allowedRoles={[1, 2, 3]}>
+                      <MainLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<MyPurchases />} />
+                </Route>  
+              
+              
+              {/* Seller Dashboard Routes - Protected */}
               <Route
                 path="/seller/*"
                 element={
@@ -110,15 +152,15 @@ const App = () => (
                 <Route path="dashboard" element={<SellerDashboard />} />
                 <Route path="templates" element={<SellerTemplates />} />
                 <Route path="templates/new" element={<UploadTemplate />} />
+                <Route path="templates/edit/:product_token" element={<EditTemplate />} />
                 <Route path="sales" element={<SellerSales />} />
                 <Route path="analytics" element={<SellerAnalytics />} />
                 <Route path="wallet" element={<SellerWallet />} />
                 <Route path="kyc" element={<SellerKYCPage />} />
                 <Route path="settings" element={<SellerSettings />} />
-                <Route path="templates/edit/:product_token" element={<EditTemplate />} />
               </Route>
 
-              {/* Admin Dashboard Routes */}
+              {/* Admin Dashboard Routes - Protected */}
               <Route
                 path="/admin/*"
                 element={
@@ -135,19 +177,18 @@ const App = () => (
                 <Route path="sales" element={<SalesManagement />} />
                 <Route path="analytics" element={<AnalyticsManagement />} />
                 <Route path="wallet" element={<WalletManagement />} />
-                <Route path="reports" element={< TxnsManagement />} />
+                <Route path="reports" element={<TxnsManagement />} />
+                <Route path="productsmanagement" element={<ProductsManagement />} />
                 <Route path="contactSellers" element={<ContactSellerManagement />} />
                 <Route path="settings" element={<AdminSettings />} />
               </Route>
 
-              {/* Catch-all route */}
+              {/* 404 Catch-all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <CookieConsent />
           </ShoppingProvider>
         </TooltipProvider>
-        
-        <ScrollToTop />
-
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>

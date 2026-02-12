@@ -799,7 +799,7 @@ const SellerKYCPage: React.FC = () => {
                         📞 Call Support
                       </Typography>
                       <Typography variant="h6" fontWeight={700}>
-                        1800-123-4567
+                        +91 22 350 399 27
                       </Typography>
                     </Paper>
                     
@@ -821,7 +821,7 @@ const SellerKYCPage: React.FC = () => {
                         📧 Email Support
                       </Typography>
                       <Typography variant="h6" fontWeight={700}>
-                        support@example.com
+                        support@templamart.com
                       </Typography>
                     </Paper>
                   </Stack>

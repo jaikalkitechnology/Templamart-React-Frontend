@@ -161,6 +161,10 @@ interface Product {
   file_size: string;
   total_comments: number;
 }
+interface Category {
+  name: string;
+  slug: string;
+}
 
 interface ProductDetail extends Product {
   template_features: string | null;
@@ -251,7 +255,7 @@ const TemplatesManagement = () => {
   });
   
   // Categories
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [technologies, setTechnologies] = useState<string[]>([]);
   
   // View mode
@@ -336,11 +340,11 @@ const TemplatesManagement = () => {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const res = await axios.get(`${BASE_URL}/dash/products/categories/list`, {
+      const res = await axios.get(`${BASE_URL}/dash/products/cat-categories/list`, {
         headers: { Authorization: `Bearer ${user?.token}` },
       });
-      if (res.data && Array.isArray(res.data.categories)) {
-        setCategories(res.data.categories);
+      if (res.data && Array.isArray(res.data.categories.items)) {
+        setCategories(res.data.categories.items as Category[]);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -874,8 +878,8 @@ const TemplatesManagement = () => {
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories && categories.length > 0 && categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                    <SelectItem key={category?.name} value={category.slug}>
+                      {category?.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1827,8 +1831,8 @@ const TemplatesManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {categories && categories.length > 0 && categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
+                        <SelectItem key={category?.name} value={category?.slug}>
+                          {category?.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

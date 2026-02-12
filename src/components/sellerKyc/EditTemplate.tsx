@@ -71,6 +71,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+interface Category {
+  name: string;
+  slug: string;
+}
+
 const EditTemplate = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -82,7 +87,7 @@ const EditTemplate = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
-
+  const [categories, setCategories] = useState<Category[]>([]);
   // Form state
   const [productData, setProductData] = useState({
     product_name: "",
@@ -122,16 +127,26 @@ const EditTemplate = () => {
     views: 0,
   });
 
-  const categories = [
-    { value: "Website Templates", icon: <Globe className="h-4 w-4" /> },
-    { value: "UI Kits", icon: <Layout className="h-4 w-4" /> },
-    { value: "Presentations", icon: <FileText className="h-4 w-4" /> },
-    { value: "Graphics", icon: <Palette className="h-4 w-4" /> },
-    { value: "Email Templates", icon: <Box className="h-4 w-4" /> },
-    { value: "Dashboards", icon: <Cpu className="h-4 w-4" /> },
-    { value: "Landing Pages", icon: <Sparkles className="h-4 w-4" /> },
-    { value: "Mobile Apps", icon: <Smartphone className="h-4 w-4" /> },
-  ];
+ const fetchCategories = async () => {
+  try {
+    const res = await axios.get(
+      `${BASE_URL}/dash/seller/products/cat-categories/list`,
+      {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      }
+    );
+
+    if (res.data && Array.isArray(res.data.categories)) {
+      setCategories(res.data.categories);
+    } else {
+      setCategories([]);
+    }
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    setCategories([]);
+  }
+};
+
 
   const licenseTypes = [
     { value: "standard", label: "Standard License", description: "Single project use" },
@@ -215,6 +230,7 @@ const EditTemplate = () => {
 
     if (product_token && user?.token) {
       fetchProduct();
+      fetchCategories();
     }
   }, [product_token, user?.token]);
 
@@ -485,13 +501,10 @@ const EditTemplate = () => {
                               <SelectValue placeholder="Select category" />
                             </SelectTrigger>
                             <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.value} value={category.value}>
-                                  <div className="flex items-center gap-2">
-                                    {category.icon}
-                                    {category.value}
-                                  </div>
-                                </SelectItem>
+                             {categories && categories.length > 0 && categories.map((category) => (
+                    <SelectItem key={category?.name} value={category.slug}>
+                      {category?.name}
+                    </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>

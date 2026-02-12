@@ -1,340 +1,634 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { X, ExternalLink } from "lucide-react";
+import { 
+  X, 
+  ExternalLink, 
+  ShoppingCart, 
+  Trash2, 
+  Plus, 
+  Minus, 
+  Tag, 
+  Shield, 
+  Lock, 
+  ArrowRight, 
+  Package, 
+  RefreshCw, 
+  Sparkles, 
+  Gift, 
+  CreditCard, 
+  Truck, 
+  CheckCircle, 
+  Star,
+  ChevronRight,
+  Receipt,
+  Percent,
+  DollarSign
+} from "lucide-react";
 import { toast } from "sonner";
 import { useShoppingContext } from "@/context/ShoppingContext";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 const Cart = () => {
   const { cart, removeFromCart, clearCart, addToCart } = useShoppingContext();
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [activePreview, setActivePreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
-  const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const total = subtotal - discount;
+  // Calculate prices correctly with GST extraction
+  const calculatePrices = () => {
+    const GST_RATE = 0.18; // 18% GST
+    
+    // Total including GST (this is the product price)
+    const totalIncludingGST = cart.reduce((total, item) => total + (item.price || 0) * (item.quantity || 1), 0);
+    
+    // Extract GST from the total (price already includes GST)
+    // If price is ₹118, then base = 118/1.18 = 100, GST = 18
+    const baseAmount = totalIncludingGST / (1 + GST_RATE);
+    const gstAmount = totalIncludingGST - baseAmount;
+    
+    // Apply discount on base amount
+    const discountAmount = discount;
+    const baseAfterDiscount = baseAmount - discountAmount;
+    
+    // Calculate GST on discounted amount
+    const gstOnDiscounted = baseAfterDiscount * GST_RATE;
+    
+    // Final total
+    const finalTotal = baseAfterDiscount + gstOnDiscounted;
+    
+    return {
+      baseAmount: baseAmount,
+      gstAmount: gstOnDiscounted,
+      totalIncludingGST: totalIncludingGST,
+      discountAmount: discountAmount,
+      finalTotal: finalTotal,
+      savings: totalIncludingGST - finalTotal
+    };
+  };
+
+  const prices = calculatePrices();
 
   const handleApplyCoupon = () => {
-    if (couponCode.toLowerCase() === "discount10") {
-      const discountAmount = subtotal * 0.1;
-      setDiscount(discountAmount);
-      toast.success("Coupon applied", {
-        description: "10% discount has been applied to your order."
-      });
-    } else {
-      toast.error("Invalid coupon code", {
-        description: "The coupon code you entered is invalid or expired."
-      });
-    }
+    setIsLoading(true);
+    setTimeout(() => {
+      const baseAmount = prices.baseAmount;
+      
+      if (couponCode.toLowerCase() === "welcome10") {
+        const discountAmount = baseAmount * 0.1;
+        setDiscount(discountAmount);
+        toast.success("Coupon Applied!", {
+          description: "🎉 10% discount has been applied to your order!",
+          duration: 3000,
+        });
+      } else if (couponCode.toLowerCase() === "firstorder") {
+        const discountAmount = baseAmount * 0.15;
+        setDiscount(discountAmount);
+        toast.success("Coupon Applied!", {
+          description: "🎊 15% discount for your first order!",
+          duration: 3000,
+        });
+      } else if (couponCode.toLowerCase() === "summer20") {
+        const discountAmount = baseAmount * 0.2;
+        setDiscount(discountAmount);
+        toast.success("Coupon Applied!", {
+          description: "🌞 20% summer discount applied!",
+          duration: 3000,
+        });
+      } else {
+        toast.error("Invalid Coupon Code", {
+          description: "The coupon code you entered is invalid or expired.",
+          duration: 3000,
+        });
+      }
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const removeCoupon = () => {
+    setDiscount(0);
+    setCouponCode("");
+    toast.info("Coupon Removed", {
+      description: "Discount has been removed from your order.",
+    });
   };
 
   const handleCheckout = () => {
-    toast.success("Proceeding to checkout", {
-      description: "Redirecting to secure payment page..."
+    toast.success("Redirecting to Checkout", {
+      description: "You'll be redirected to secure payment in 2 seconds...",
+      duration: 2000,
     });
-    // In a real app, this would navigate to the checkout page
+    setTimeout(() => {
+      // Navigate to checkout
+    }, 2000);
   };
 
   const updateQuantity = (item, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(item.id);
+      toast.info("Item removed", {
+        description: `${item.title} has been removed from your cart.`,
+      });
     } else {
-      // First remove the item
       removeFromCart(item.id);
-      // Then add it back with the new quantity
       for (let i = 0; i < newQuantity; i++) {
         addToCart(item);
       }
     }
   };
 
-  // Function to get website URL from item
+  const clearCartWithConfirmation = () => {
+    if (window.confirm("Are you sure you want to clear your cart?")) {
+      clearCart();
+      setDiscount(0);
+      setCouponCode("");
+      toast.info("Cart Cleared", {
+        description: "All items have been removed from your cart.",
+      });
+    }
+  };
+
   const getWebsiteUrl = (item) => {
-    // If item has a website property, use it
     if (item.website) return item.website;
-    
-    // If item has a liveDemoUrl or previewUrl, use it
     if (item.liveDemoUrl) return item.liveDemoUrl;
     if (item.previewUrl) return item.previewUrl;
-    
-    // If image is a URL, you might want to use a placeholder instead
-    // For now, return the image URL as fallback (but it's not a website)
     return item.image;
   };
 
-  // Function to check if URL is embeddable
   const isEmbeddableUrl = (url) => {
     if (!url) return false;
     try {
       const urlObj = new URL(url);
-      // Check if it's a web URL (http/https)
       return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
     } catch {
       return false;
     }
   };
 
-  return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold">Your Cart</h1>
-      <p className="text-muted-foreground">Review your items before checkout</p>
+  const popularCoupons = [
+    { code: "WELCOME10", discount: "10% off", desc: "For new customers", color: "from-blue-500 to-cyan-500" },
+    { code: "FIRSTORDER", discount: "15% off", desc: "First purchase only", color: "from-purple-500 to-pink-500" },
+    { code: "SUMMER20", discount: "20% off", desc: "Limited time offer", color: "from-orange-500 to-red-500" },
+  ];
 
-      {cart.length > 0 ? (
-        <div className="mt-8 grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cart Items ({cart.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {cart.map((item) => {
-                    const websiteUrl = getWebsiteUrl(item);
-                    const isEmbeddable = isEmbeddableUrl(websiteUrl);
-                    
-                    return (
-                      <div key={item.id} className="flex items-start space-x-4">
-                        <div className="h-40 w-40 overflow-hidden rounded-md border bg-gray-100 relative group">
-                          {isEmbeddable ? (
-                            <>
-                              <iframe
-                                src={websiteUrl}
-                                title={`${item.title} Preview`}
-                                className="h-full w-full"
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                                loading="lazy"
-                                style={{ border: 'none' }}
-                              />
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="absolute bottom-2 right-2 h-6 px-2 text-xs"
-                                  onClick={() => setActivePreview(activePreview === item.id ? null : item.id)}
-                                >
-                                  {activePreview === item.id ? 'Minimize' : 'Expand'}
-                                </Button>
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background via-background/50 to-background pb-20 lg:pb-0">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-primary via-purple-600 to-pink-600 py-6 md:py-12">
+        <div className="container px-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
+            <div>
+              <h1 className="text-2xl md:text-4xl font-bold text-white">Shopping Cart</h1>
+              <p className="text-white/80 mt-1 md:mt-2 text-sm md:text-base">Review your items before checkout</p>
+            </div>
+            <Badge className="bg-white/20 backdrop-blur-sm text-white border-0 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm">
+              <ShoppingCart className="mr-1.5 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4" />
+              {cart.length} item{cart.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="container px-4 py-4 md:py-8">
+        {cart.length > 0 ? (
+          <div className="grid gap-4 md:gap-8 lg:grid-cols-3">
+            {/* Cart Items */}
+            <div className="lg:col-span-2 space-y-4 md:space-y-6">
+              <Card className="border-0 shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-primary/5 to-primary/10 p-3 md:p-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base md:text-xl flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 md:h-5 md:w-5" />
+                      <span className="hidden sm:inline">Cart Items</span>
+                      <span className="sm:hidden">Items</span>
+                    </CardTitle>
+                    <Badge variant="outline" className="bg-background text-xs md:text-sm">
+                      {cart.length}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {cart.map((item) => {
+                      const websiteUrl = getWebsiteUrl(item);
+                      const isEmbeddable = isEmbeddableUrl(websiteUrl);
+                      
+                      return (
+                        <div key={item.id} className="group hover:bg-muted/30 transition-colors">
+                          <div className="p-3 md:p-6">
+                            <div className="flex gap-3 md:gap-4">
+                              {/* Product Image */}
+                              <div className="relative w-20 h-20 md:w-32 md:h-32 lg:w-40 lg:h-40 rounded-lg md:rounded-xl overflow-hidden border bg-gradient-to-br from-muted to-muted/50 group-hover:shadow-lg transition-all flex-shrink-0">
+                                {isEmbeddable ? (
+                                  <iframe
+                                    src={websiteUrl}
+                                    title={`${item.title} Preview`}
+                                    className="h-full w-full pointer-events-none"
+                                    sandbox="allow-scripts allow-same-origin"
+                                    loading="lazy"
+                                    style={{ border: 'none' }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={item.image}
+                                    alt={item.title}
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                )}
+                                {item.price == 0.00 && (
+                                  <Badge className="absolute top-1 left-1 md:top-2 md:left-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 text-[10px] md:text-xs px-1.5 md:px-2">
+                                    FREE
+                                  </Badge>
+                                )}
                               </div>
-                            </>
-                          ) : (
-                            <img
-                              src={item.image}
-                              alt={item.title}
-                              className="h-full w-full object-cover"
-                            />
-                          )}
-                        </div>
-                        
-                        {/* Expanded Preview Modal */}
-                        {activePreview === item.id && isEmbeddable && (
-                          <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-lg w-full max-w-6xl h-[80vh] flex flex-col">
-                              <div className="flex items-center justify-between p-4 border-b">
-                                <div>
-                                  <h3 className="font-semibold">{item.title} - Live Preview</h3>
-                                  <p className="text-sm text-muted-foreground">{websiteUrl}</p>
+
+                              {/* Product Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-col gap-2 md:gap-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-semibold text-sm md:text-lg leading-tight">
+                                        <Link
+                                          to={`/template/${item.id}`}
+                                          className="hover:text-primary transition-colors line-clamp-2"
+                                        >
+                                          {item.title}
+                                        </Link>
+                                      </h3>
+                                      <p className="hidden md:block text-muted-foreground text-sm mt-1 line-clamp-2">
+                                        {item.description || "Premium template"}
+                                      </p>
+                                    </div>
+
+                                    {/* Desktop Price */}
+                                    <div className="hidden md:block text-right flex-shrink-0">
+                                      <div className="text-xl lg:text-2xl font-bold">
+                                        ₹{(item.price * (item.quantity || 1)).toLocaleString()}
+                                      </div>
+                                      {item.quantity > 1 && (
+                                        <div className="text-sm text-muted-foreground">
+                                          ₹{item.price?.toLocaleString()} each
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Mobile Price */}
+                                  <div className="md:hidden text-lg font-bold">
+                                    ₹{(item.price * (item.quantity || 1)).toLocaleString()}
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                                    {/* Quantity */}
+                                    <div className="flex items-center border rounded-lg">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 md:h-8 md:w-8 rounded-r-none"
+                                        onClick={() => updateQuantity(item, (item.quantity || 1) - 1)}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <div className="w-8 md:w-12 text-center font-medium text-sm md:text-base">
+                                        {item.quantity || 1}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 md:h-8 md:w-8 rounded-l-none"
+                                        onClick={() => updateQuantity(item, (item.quantity || 1) + 1)}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+
+                                    {isEmbeddable && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => window.open(websiteUrl, '_blank')}
+                                        className="gap-1.5 md:gap-2 text-xs md:text-sm h-7 md:h-8 px-2 md:px-3"
+                                      >
+                                        <ExternalLink className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                                        <span className="hidden sm:inline">Preview</span>
+                                      </Button>
+                                    )}
+
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => removeFromCart(item.id)}
+                                      className="text-red-500 hover:text-red-600 hover:bg-red-50 h-7 w-7 md:h-8 md:w-8"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    asChild
-                                  >
-                                    <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
-                                      <ExternalLink className="h-4 w-4 mr-2" />
-                                      Open in New Tab
-                                    </a>
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => setActivePreview(null)}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="flex-1 overflow-hidden">
-                                <iframe
-                                  src={websiteUrl}
-                                  title={`${item.title} Full Preview`}
-                                  className="h-full w-full"
-                                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation"
-                                  allowFullScreen
-                                />
                               </div>
                             </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+                
+                <CardFooter className="flex flex-col sm:flex-row gap-2 md:gap-3 justify-between p-3 md:p-6 border-t bg-muted/20">
+                  <Button
+                    variant="outline"
+                    onClick={clearCartWithConfirmation}
+                    className="w-full sm:w-auto gap-2 hover:bg-red-50 hover:text-red-600 text-sm md:text-base h-9 md:h-10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    Clear Cart
+                  </Button>
+                  <Button variant="outline" asChild className="w-full sm:w-auto gap-2 text-sm md:text-base h-9 md:h-10">
+                    <Link to="/templates">
+                      <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                      Continue Shopping
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              {/* Coupon Section */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="pb-2 md:pb-3 p-3 md:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                    <Tag className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                    Apply Coupon
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 md:p-6 pt-0">
+                  <Tabs defaultValue="apply" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 h-9 md:h-10">
+                      <TabsTrigger value="apply" className="text-xs md:text-sm">Apply</TabsTrigger>
+                      <TabsTrigger value="popular" className="text-xs md:text-sm">Popular</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="apply" className="space-y-3 pt-3">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Input
+                          placeholder="Enter code"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="h-10 md:h-12 text-sm md:text-base"
+                          disabled={discount > 0}
+                        />
+                        {discount > 0 ? (
+                          <Button
+                            onClick={removeCoupon}
+                            variant="outline"
+                            className="h-10 md:h-12 px-4 md:px-6"
+                          >
+                            <X className="mr-2 h-4 w-4" />
+                            Remove
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={handleApplyCoupon}
+                            disabled={!couponCode || isLoading}
+                            className="h-10 md:h-12 px-4 md:px-6 bg-gradient-to-r from-primary to-brand-600"
+                          >
+                            {isLoading ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Apply"
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {discount > 0 && (
+                        <div className="rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 p-3">
+                          <div className="flex items-center gap-2 text-green-700">
+                            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                            <span className="font-semibold text-sm">Applied!</span>
+                            <span className="ml-auto font-bold">-₹{discount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="popular" className="pt-3">
+                      <div className="grid gap-2">
+                        {popularCoupons.map((coupon) => (
+                          <div
+                            key={coupon.code}
+                            onClick={() => setCouponCode(coupon.code)}
+                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer active:scale-[0.98]"
+                          >
+                            <div className="flex items-center gap-2 md:gap-3">
+                              <div className={cn(
+                                "h-8 w-8 md:h-10 md:w-10 rounded-lg bg-gradient-to-br flex items-center justify-center",
+                                coupon.color
+                              )}>
+                                <Gift className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="font-medium text-sm">{coupon.code}</div>
+                                <div className="text-xs text-muted-foreground">{coupon.desc}</div>
+                              </div>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">{coupon.discount}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Desktop Summary */}
+            <div className="hidden lg:block">
+              <Card className="border-0 shadow-lg sticky top-24">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Receipt className="h-5 w-5" />
+                    Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="font-medium">₹{prices.totalIncludingGST.toFixed(2)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Base Amount</span>
+                      <span className="font-medium">₹{prices.baseAmount.toFixed(2)}</span>
+                    </div>
+                    
+                    {discount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span className="flex items-center gap-1">
+                          <Tag className="h-3.5 w-3.5" />
+                          Discount
+                        </span>
+                        <span className="font-bold">-₹{discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Percent className="h-3.5 w-3.5" />
+                        GST (18%)
+                      </span>
+                      <span className="font-medium">₹{prices.gstAmount.toFixed(2)}</span>
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total</span>
+                      <div className="text-right">
+                        <div className="text-2xl text-primary">₹{prices.finalTotal.toFixed(2)}</div>
+                        {prices.savings > 0 && (
+                          <div className="text-xs text-green-600 font-normal">
+                            Saved ₹{prices.savings.toFixed(2)}
                           </div>
                         )}
+                      </div>
+                    </div>
 
-                        <div className="flex-1">
-                          <h3 className="font-medium">
-                            <Link
-                              to={`/template/${item.id}`}
-                              className="hover:text-primary hover:underline"
-                            >
-                              {item.title}
-                            </Link>
-                          </h3>
-                          <p className="text-muted-foreground">
-                            Single license
-                          </p>
-                          {isEmbeddable && (
-                            <div className="mt-1">
-                              <Button
-                                variant="link"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                                asChild
-                              >
-                                <a 
-                                  href={websiteUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  Visit Live Website
-                                </a>
-                              </Button>
-                            </div>
-                          )}
-                          <div className="mt-2 flex items-center">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-7 w-7"
-                              onClick={() => updateQuantity(item, item.quantity - 1)}
-                            >
-                              -
-                            </Button>
-                            <span className="mx-2 min-w-[30px] text-center">{item.quantity}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-7 w-7"
-                              onClick={() => updateQuantity(item, item.quantity + 1)}
-                            >
-                              +
-                            </Button>
-                          </div>
+                    <div className="rounded-lg bg-blue-50 dark:bg-blue-900/10 p-3 space-y-1">
+                      <div className="text-xs font-semibold text-blue-900 dark:text-blue-100">GST:</div>
+                      <div className="text-xs text-blue-700 dark:text-blue-300 space-y-0.5">
+                        <div className="flex justify-between">
+                          <span>CGST (9%):</span>
+                          <span>₹{(prices.gstAmount / 2).toFixed(2)}</span>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => removeFromCart(item.id)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                        <div className="flex justify-between">
+                          <span>SGST (9%):</span>
+                          <span>₹{(prices.gstAmount / 2).toFixed(2)}</span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={clearCart}>Clear Cart</Button>
-                <Button variant="outline" asChild>
-                  <Link to="/templates">Continue Shopping</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{subtotal.toFixed(2)}</span>
-                  </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount</span>
-                      <span>-₹{discount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <Separator />
-                  <div className="flex justify-between font-bold">
-                    <span>Total</span>
-                    <span>₹{total.toFixed(2)}</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Coupon Code</div>
-                    <div className="flex space-x-2">
-                      <Input
-                        placeholder="Enter coupon code"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={handleApplyCoupon}
-                        disabled={!couponCode}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Try "DISCOUNT20" for 20% off
                     </div>
                   </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full" size="lg" onClick={handleCheckout}>
-                  Proceed to Checkout
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <div className="mt-4 rounded-lg border p-4">
-              <h3 className="font-medium">Secure Checkout</h3>
-              <p className="text-sm text-muted-foreground">
-                We use secure payment processing to ensure your information is
-                always protected.
-              </p>
+                  
+                  <Button
+                    className="w-full h-14 text-base font-semibold bg-gradient-to-r from-primary via-purple-600 to-pink-600 shadow-lg"
+                    onClick={handleCheckout}
+                  >
+                    <Lock className="h-5 w-5 mr-2" />
+                    Checkout
+                    <ArrowRight className="h-5 w-5 ml-auto" />
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="mt-12 flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="rounded-full bg-muted p-6">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-12 w-12 text-muted-foreground"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9 9h6M9 15h6"
-              />
-            </svg>
+        ) : (
+          <div className="max-w-2xl mx-auto py-8 md:py-20">
+            <Card className="border-0 shadow-xl">
+              <div className="bg-gradient-to-r from-primary/5 to-primary/10 p-6 md:p-8 text-center">
+                <div className="h-20 w-20 md:h-24 md:w-24 mx-auto rounded-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-4">
+                  <ShoppingCart className="h-10 w-10 md:h-12 md:w-12 text-primary" />
+                </div>
+                <h2 className="text-xl md:text-3xl font-bold mb-2">Cart is empty</h2>
+                <p className="text-sm md:text-base text-muted-foreground mb-6">Find the perfect template!</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button asChild size="lg" className="gap-2 bg-gradient-to-r from-primary to-brand-600">
+                    <Link to="/templates">
+                      <Sparkles className="h-4 w-4" />
+                      Browse
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="gap-2">
+                    <Link to="/featured">
+                      <Star className="h-4 w-4" />
+                      Featured
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </div>
-          <h2 className="text-xl font-semibold">Your cart is empty</h2>
-          <p className="max-w-md text-muted-foreground">
-            Looks like you haven&apos;t added any templates to your cart yet.
-            Find the perfect template for your project!
-          </p>
-          <Button asChild>
-            <Link to="/templates">Browse Templates</Link>
-          </Button>
-        </div>
+        )}
+      </div>
+
+      {/* Mobile Bottom Bar */}
+      {cart.length > 0 && (
+        <Sheet open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t shadow-lg">
+            <div className="container px-4 py-3">
+              <div className="flex items-center gap-3">
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="h-11 px-4 rounded-xl flex-1">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="text-left">
+                        <div className="text-xs text-muted-foreground">Total</div>
+                        <div className="text-base font-bold">₹{prices.finalTotal.toFixed(2)}</div>
+                      </div>
+                      <ChevronRight className="h-5 w-5" />
+                    </div>
+                  </Button>
+                </SheetTrigger>
+
+                <Button 
+                  className="h-11 px-6 bg-gradient-to-r from-primary to-brand-600 rounded-xl"
+                  onClick={handleCheckout}
+                >
+                  Checkout
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
+            <SheetHeader>
+              <SheetTitle>Order Summary</SheetTitle>
+            </SheetHeader>
+            
+            <div className="space-y-4 overflow-y-auto h-[calc(85vh-180px)] mt-4">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>₹{prices.totalIncludingGST.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Base</span>
+                  <span>₹{prices.baseAmount.toFixed(2)}</span>
+                </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount</span>
+                    <span>-₹{discount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>GST (18%)</span>
+                  <span>₹{prices.gstAmount.toFixed(2)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total</span>
+                  <span className="text-primary">₹{prices.finalTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t">
+              <Button className="w-full h-12 bg-gradient-to-r from-primary to-brand-600" onClick={() => {
+                setIsSummaryOpen(false);
+                handleCheckout();
+              }}>
+                <Lock className="h-5 w-5 mr-2" />
+                Proceed to Checkout
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );

@@ -785,11 +785,11 @@ const SellerWallet = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTransactions.map((txn) => (
-                      <TableRow key={txn.id} className="hover:bg-muted/30">
+                    {filteredTransactions?.map((txn) => (
+                      <TableRow key={txn?.id} className="hover:bg-muted/30">
                         <TableCell>
                           <div className="space-y-1">
-                            <div className="font-medium">{formatDate(txn.created_at)}</div>
+                            <div className="font-medium">{formatDate(txn?.created_at)}</div>
                             <div className="text-xs text-muted-foreground">
                               {new Date(txn.created_at).toLocaleTimeString()}
                             </div>
@@ -819,13 +819,13 @@ const SellerWallet = () => {
                                   : "border-amber-200 text-amber-700 bg-amber-50"
                               }
                             >
-                              {txn.transaction_type}
+                              {txn?.transaction_type}
                             </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className={`font-bold flex items-center gap-1 ${
-                            txn.credit_debit === "credit" ? "text-green-600" : "text-red-600"
+                            txn?.credit_debit === "credit" ? "text-green-600" : "text-red-600"
                           }`}>
                             {txn.credit_debit === "credit" ? (
                               <ArrowUpRight className="h-4 w-4" />
@@ -833,7 +833,7 @@ const SellerWallet = () => {
                               <ArrowDownRight className="h-4 w-4" />
                             )}
                             <IndianRupee className="h-4 w-4" />
-                            {formatCurrency(txn.amount)}
+                            {formatCurrency(txn?.amount)}
                           </div>
                         </TableCell>
                         <TableCell className="font-medium text-green-600">
@@ -842,14 +842,14 @@ const SellerWallet = () => {
                         </TableCell>
                         <TableCell className="font-medium text-red-600">
                           <IndianRupee className="h-4 w-4 inline mr-1" />
-                          {formatCurrency(txn.balance_amount)}
+                          {formatCurrency(txn?.balance_amount)}
                         </TableCell>
                         <TableCell>
                           <IndianRupee className="h-4 w-4 inline mr-1" />
                           {formatCurrency(txn.gst)}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {txn.txn_id.slice(0, 8)}...
+                          {txn?.txn_id}...
                         </TableCell>
                         <TableCell>
                           <Badge
